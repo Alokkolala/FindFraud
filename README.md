@@ -136,11 +136,16 @@ from findfraud.graph_model import GraphModelTrainer
 
 trainer = GraphModelTrainer()
 artifacts = trainer.load_artifacts("outputs/graph.pt")
-G = artifacts.to_networkx()
+G = artifacts.to_networkx(
+    min_txn_count=3,       # hide edges with fewer than 3 transfers
+    min_total_amount=1e5,  # hide edges that moved less than 100k total
+    top_n_nodes=50,        # keep only the busiest 50 accounts to reduce clutter
+)
 
-pos = nx.spring_layout(G, seed=0)
+pos = nx.spring_layout(G, seed=0, k=0.3)
+edge_amounts = [G.edges[e]["edge_attr"][0] for e in G.edges]
 nx.draw_networkx_nodes(G, pos, node_size=80)
-nx.draw_networkx_edges(G, pos, alpha=0.2)
+nx.draw_networkx_edges(G, pos, alpha=0.3, edge_color=edge_amounts, edge_cmap=plt.cm.Blues)
 nx.draw_networkx_labels(G, pos, labels={n: G.nodes[n]["account_name"] for n in G.nodes}, font_size=6)
 plt.tight_layout()
 plt.show()

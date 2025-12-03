@@ -52,14 +52,49 @@ class GraphArtifacts:
             data_kwargs["y"] = self.node_labels
         return Data(**data_kwargs)
 
-    def to_networkx(self) -> "networkx.Graph":
-        """Convert the graph to a NetworkX graph for visualization or exploration."""
+    def to_networkx(
+        self,
+        min_txn_count: int = 1,
+        min_total_amount: float | None = None,
+        top_n_nodes: int | None = None,
+    ) -> "networkx.Graph":
+        """Convert the graph to a NetworkX graph for visualization or exploration.
+
+        Parameters
+        ----------
+        min_txn_count:
+            Drop edges with fewer transactions than this threshold before plotting.
+        min_total_amount:
+            Drop edges whose aggregated amount is below this value.
+        top_n_nodes:
+            Keep only the highest-degree nodes to reduce clutter (helpful for dense stars).
+        """
 
         _require_torch()
+        import torch
         from torch_geometric.utils import to_networkx
 
         data = self.as_data()
+        edge_attr = getattr(data, "edge_attr", None)
+
+        if edge_attr is not None:
+            mask = torch.ones(edge_attr.size(0), dtype=torch.bool)
+            if min_txn_count > 1:
+                mask &= edge_attr[:, 1] >= float(min_txn_count)
+            if min_total_amount is not None:
+                mask &= edge_attr[:, 0] >= float(min_total_amount)
+
+            if mask.any():
+                data.edge_index = data.edge_index[:, mask]
+                data.edge_attr = edge_attr[mask]
+
         graph = to_networkx(data, node_attrs=[], edge_attrs=["edge_attr"], to_undirected=True)
+
+        if top_n_nodes is not None and graph.number_of_nodes() > 0:
+            top_n_nodes = min(top_n_nodes, graph.number_of_nodes())
+            ranked = sorted(graph.degree, key=lambda item: item[1], reverse=True)
+            keep_nodes = {node for node, _ in ranked[:top_n_nodes]}
+            graph = graph.subgraph(keep_nodes).copy()
 
         reverse_mapping = {idx: name for name, idx in self.node_mapping.items()}
         for node_id in graph.nodes:

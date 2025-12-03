@@ -46,21 +46,24 @@ step,type,amount,nameOrig,oldbalanceOrg,newbalanceOrig,nameDest,oldbalanceDest,n
 1. **Install Python 3.10+** and ensure `pip` is available.
 2. **Create and activate a virtual environment** (recommended):
 
-```bash
+```powershell
 python -m venv .venv
-source .venv/bin/activate
+# PowerShell
+.\.venv\Scripts\Activate.ps1
+# cmd.exe
+.\.venv\Scripts\activate.bat
 ```
 
-3. **Install the project in editable mode with dependencies**:
+3. **Install the project in editable mode with dependencies** (PowerShell-safe quoting shown; use `\` for line wrapping if desired):
 
-```bash
-pip install -U pip
-pip install -e .
+```powershell
+python -m pip install -U pip
+python -m pip install -e .
 ```
 
 4. **Verify the CLI is available**:
 
-```bash
+```powershell
 python -m findfraud.cli --help
 ```
 
@@ -70,7 +73,7 @@ You should see commands for `train` and `score`. The editable install exposes `f
 
 ### Train a model
 
-```bash
+```powershell
 python -m findfraud.cli train data/transactions.csv models/anomaly.joblib
 ```
 
@@ -78,8 +81,8 @@ This fits feature encoders, trains an `IsolationForest`, stores SHAP background 
 
 ### Score new transactions
 
-```bash
-python -m findfraud.cli score data/new_transactions.csv models/anomaly.joblib outputs/scores.csv \
+```powershell
+python -m findfraud.cli score data/new_transactions.csv models/anomaly.joblib outputs/scores.csv `
   --html-report outputs/report.html --pdf-report outputs/report.pdf
 ```
 
@@ -90,14 +93,14 @@ The scorer outputs `transaction_id`, `fraud_score`, `is_suspicious`, and `explan
 1. Place your PaySim-style CSV in `data/transactions.csv` (see schema above).
 2. Train the model:
 
-```bash
+```powershell
 python -m findfraud.cli train data/transactions.csv models/anomaly.joblib
 ```
 
 3. Score the same (or another) CSV and emit artifacts:
 
-```bash
-python -m findfraud.cli score data/transactions.csv models/anomaly.joblib outputs/scores.csv \
+```powershell
+python -m findfraud.cli score data/transactions.csv models/anomaly.joblib outputs/scores.csv `
   --html-report outputs/report.html --pdf-report outputs/report.pdf
 ```
 

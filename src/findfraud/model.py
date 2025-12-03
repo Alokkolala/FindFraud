@@ -43,7 +43,7 @@ class ModelTrainer:
             ]
         )
         pipeline.fit(X)
-        background = shap.sample(X, nsamples=min(200, len(X)))
+        background = shap.sample(X, nsamples=min(50, len(X))).astype(float)
         return {"pipeline": pipeline, "feature_columns": list(feature_columns), "background": background}
 
     def save(self, model_bundle: dict, path: str | Path) -> None:
@@ -66,12 +66,20 @@ class AnomalyDetector:
             self.explainer = None
 
     def score(self, features: pd.DataFrame) -> tuple[np.ndarray, list[str]]:
-        X = features[self.feature_columns].fillna(0)
+        X = features[self.feature_columns].fillna(0).astype(float)
         anomaly_raw = -self.pipeline.decision_function(X)
-        score = (anomaly_raw - anomaly_raw.min()) / (anomaly_raw.ptp() + 1e-9)
+        raw_range = np.ptp(anomaly_raw)
+        score = (anomaly_raw - anomaly_raw.min()) / (raw_range + 1e-9)
         explanations: list[str] = ["" for _ in range(len(features))]
         if self.explainer is not None:
-            shap_values = self.explainer(X)
+            explain_count = min(50, len(X))
+            shap_values = self.explainer(X.iloc[:explain_count])
+            global_importance = np.abs(shap_values.values).mean(axis=0)
+            global_top_idx = global_importance.argsort()[-3:][::-1]
+            global_top = ", ".join(
+                f"{self.feature_columns[j]} ({global_importance[j]:.3f})" for j in global_top_idx
+            )
+
             for i, sample_values in enumerate(shap_values.values):
                 feature_importance = np.abs(sample_values)
                 top_idx = feature_importance.argsort()[-3:][::-1]
@@ -79,4 +87,7 @@ class AnomalyDetector:
                     f"{self.feature_columns[j]} ({sample_values[j]:.3f})" for j in top_idx
                 ]
                 explanations[i] = ", ".join(top_features)
+
+            for i in range(explain_count, len(explanations)):
+                explanations[i] = global_top
         return score, explanations

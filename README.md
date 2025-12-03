@@ -9,6 +9,8 @@ src/findfraud/
 ├── data_loader.py      # Schema-aware CSV ingestion
 ├── features.py         # Feature engineering for tabular fraud dataset
 ├── model.py            # IsolationForest training and SHAP explainability
+├── graph_builder.py    # Graph construction and aggregation utilities
+├── graph_model.py      # Graph neural network (GraphSAGE) training/inference
 ├── rules.py            # Configurable heuristic rules
 ├── scorer.py           # Combined scoring pipeline
 ├── report.py           # HTML/PDF reporting
@@ -52,6 +54,12 @@ pip install -e .
 
 The editable install exposes `findfraud` as a package and `python -m findfraud.cli` as a CLI.
 
+For graph-based scoring, install the optional dependencies:
+
+```bash
+pip install -e .[graph]
+```
+
 ## Usage
 
 ### Train a model
@@ -62,6 +70,17 @@ python -m findfraud.cli train data/transactions.csv models/anomaly.joblib
 
 This fits feature encoders, trains an `IsolationForest`, stores SHAP background data, and saves everything to `models/anomaly.joblib`.
 
+Train a graph neural network instead of the tabular model:
+
+```bash
+python -m findfraud.cli train data/transactions.csv models/gnn.pt \
+  --model-type gnn --graph-artifacts outputs/graph.pt --window-size 24 --min-edge-count 2 \
+  --gnn-hidden 64 --gnn-layers 2 --gnn-epochs 50
+```
+
+This builds an account-to-account interaction graph with rolling window aggregations, trains a GraphSAGE model, and optionally
+persists the serialized graph snapshot alongside the model weights.
+
 ### Score new transactions
 
 ```bash
@@ -70,6 +89,13 @@ python -m findfraud.cli score data/new_transactions.csv models/anomaly.joblib ou
 ```
 
 The scorer outputs `transaction_id`, `fraud_score`, `is_suspicious`, and `explanation` columns. HTML reporting is always produced when requested; PDF generation will occur if `weasyprint` is installed.
+
+To score with a trained GNN while keeping a copy of the reconstructed graph:
+
+```bash
+python -m findfraud.cli score data/new_transactions.csv models/gnn.pt outputs/graph_scores.csv \
+  --model-type gnn --graph-artifacts outputs/scored_graph.pt
+```
 
 ### Explainability
 

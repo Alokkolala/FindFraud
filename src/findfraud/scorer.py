@@ -1,6 +1,7 @@
 """Score transactions with combined ML and rule-based logic."""
 from __future__ import annotations
 
+from dataclasses import asdict
 from pathlib import Path
 from typing import Optional
 
@@ -19,14 +20,41 @@ class ScoringPipeline:
         feature_config: FeatureConfig | None = None,
         model_config: ModelConfig | None = None,
         rule_config: RuleConfig | None = None,
+        model_choice: str = "tabular",
+        graph_config: "GraphBuilderConfig | None" = None,
+        graph_model_config: "GraphModelConfig | None" = None,
     ) -> None:
         self.loader = TransactionLoader()
         self.feature_engineer = FeatureEngineer(config=feature_config)
         self.model_trainer = ModelTrainer(config=model_config)
         self.rule_engine = RuleEngine(config=rule_config)
+        self.model_choice = model_choice
 
-    def train(self, csv_path: str, model_output: str) -> dict:
+        if model_choice == "gnn":
+            from .graph_builder import GraphBuilder, GraphBuilderConfig
+            from .graph_model import GraphModelConfig, GraphModelTrainer
+
+            self.graph_builder = GraphBuilder(config=graph_config or GraphBuilderConfig())
+            self.graph_model_trainer = GraphModelTrainer(config=graph_model_config or GraphModelConfig())
+        else:
+            self.graph_builder = None
+            self.graph_model_trainer = None
+
+    def train(self, csv_path: str, model_output: str, graph_output: str | None = None) -> dict:
         raw = self.loader.load(csv_path)
+
+        if self.model_choice == "gnn":
+            if self.graph_builder is None or self.graph_model_trainer is None:
+                raise ValueError("Graph components are not initialized.")
+            artifacts = self.graph_builder.build(raw)
+            model_bundle = self.graph_model_trainer.train(artifacts)
+            model_bundle["builder_config"] = asdict(self.graph_builder.config)
+            model_bundle["node_mapping"] = artifacts.node_mapping
+            self.graph_model_trainer.save(model_bundle, model_output)
+            if graph_output:
+                self.graph_model_trainer.save_artifacts(artifacts, graph_output)
+            return model_bundle
+
         self.feature_engineer.fit(raw)
         enriched, feature_cols = self.feature_engineer.transform(raw)
         model_bundle = self.model_trainer.train(enriched, feature_cols)
@@ -42,6 +70,12 @@ class ScoringPipeline:
             self.feature_engineer.category_levels_ = category_levels
             self.feature_engineer.category_frequency_ = category_freq
 
+    def _augment_rule_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        augmented = df.copy()
+        augmented["origin_balance_delta"] = augmented["oldbalanceOrg"] - augmented["newbalanceOrig"] - augmented["amount"]
+        augmented["dest_is_new"] = ((augmented["oldbalanceDest"] == 0) & (augmented["newbalanceDest"] > 0)).astype(int)
+        return augmented
+
     def score(
         self,
         csv_path: str,
@@ -49,15 +83,37 @@ class ScoringPipeline:
         output_csv: str,
         html_report: Optional[str] = None,
         pdf_report: Optional[str] = None,
+        graph_output: Optional[str] = None,
     ) -> pd.DataFrame:
-        model_bundle = self.model_trainer.load(model_path)
-        self._restore_feature_engineer(model_bundle)
         raw = self.loader.load(csv_path)
-        enriched, feature_cols = self.feature_engineer.transform(raw)
-        detector = AnomalyDetector(model_bundle)
-        ml_scores, shap_text = detector.score(enriched)
 
-        rule_results = self.rule_engine.evaluate(enriched)
+        if self.model_choice == "gnn":
+            if self.graph_builder is None or self.graph_model_trainer is None:
+                raise ValueError("Graph components are not initialized.")
+            from .graph_builder import GraphBuilderConfig
+            from .graph_model import GraphAnomalyDetector
+
+            model_bundle = self.graph_model_trainer.load(model_path)
+            builder_cfg = model_bundle.get("builder_config")
+            if builder_cfg:
+                self.graph_builder.config = GraphBuilderConfig(**builder_cfg)
+            artifacts = self.graph_builder.build(raw)
+            detector = GraphAnomalyDetector(model_bundle)
+            ml_scores = np.array(detector.score(artifacts))
+            shap_text = [f"Graph risk={score:.3f}" for score in ml_scores]
+            if graph_output:
+                self.graph_model_trainer.save_artifacts(artifacts, graph_output)
+            enriched = artifacts.transactions
+            rule_frame = self._augment_rule_features(raw)
+        else:
+            model_bundle = self.model_trainer.load(model_path)
+            self._restore_feature_engineer(model_bundle)
+            enriched, feature_cols = self.feature_engineer.transform(raw)
+            detector = AnomalyDetector(model_bundle)
+            ml_scores, shap_text = detector.score(enriched)
+            rule_frame = enriched
+
+        rule_results = self.rule_engine.evaluate(rule_frame)
         rule_text = self.rule_engine.summarize(rule_results)
         rule_scores = np.array([1.0 if r else 0.0 for r in rule_results])
 

@@ -50,6 +50,21 @@ class GraphArtifacts:
             data_kwargs["y"] = self.node_labels
         return Data(**data_kwargs)
 
+    def to_networkx(self) -> "networkx.Graph":
+        """Convert the graph to a NetworkX graph for visualization or exploration."""
+
+        _require_torch()
+        from torch_geometric.utils import to_networkx
+
+        data = self.as_data()
+        graph = to_networkx(data, node_attrs=[], edge_attrs=["edge_attr"], to_undirected=True)
+
+        reverse_mapping = {idx: name for name, idx in self.node_mapping.items()}
+        for node_id in graph.nodes:
+            graph.nodes[node_id]["account_name"] = reverse_mapping.get(node_id, str(node_id))
+
+        return graph
+
     def to_metadata(self) -> dict:
         return {
             "node_mapping": self.node_mapping,

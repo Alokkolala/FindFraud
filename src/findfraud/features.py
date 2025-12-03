@@ -36,7 +36,10 @@ class FeatureEngineer:
         df_sorted = df.sort_values("step")
         counts = (
             df_sorted.groupby("nameOrig", group_keys=False)
-            .apply(lambda g: g.set_index("step")["amount"].rolling(window).count())
+            .apply(
+                lambda g: g.set_index("step")["amount"].rolling(window).count(),
+                include_groups=False,
+            )
             .reset_index(level=0, drop=True)
         )
         return counts.reindex(df_sorted.index)

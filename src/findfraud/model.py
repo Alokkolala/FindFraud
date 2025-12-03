@@ -68,7 +68,7 @@ class AnomalyDetector:
     def score(self, features: pd.DataFrame) -> tuple[np.ndarray, list[str]]:
         X = features[self.feature_columns].fillna(0)
         anomaly_raw = -self.pipeline.decision_function(X)
-        score = (anomaly_raw - anomaly_raw.min()) / (anomaly_raw.ptp() + 1e-9)
+        score = (anomaly_raw - anomaly_raw.min()) / (np.ptp(anomaly_raw) + 1e-9)
         explanations: list[str] = ["" for _ in range(len(features))]
         if self.explainer is not None:
             shap_values = self.explainer(X)

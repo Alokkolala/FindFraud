@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Dict, List, Optional
+import warnings
 
 import importlib.util
 import pandas as pd
@@ -36,6 +37,7 @@ class GraphArtifacts:
     feature_names: List[str]
     transactions: pd.DataFrame
     node_labels: Optional["torch.Tensor"] = None
+    min_edge_count_used: int | None = None
 
     def as_data(self) -> "torch_geometric.data.Data":
         _require_torch()
@@ -69,6 +71,7 @@ class GraphArtifacts:
         return {
             "node_mapping": self.node_mapping,
             "feature_names": self.feature_names,
+            "min_edge_count_used": self.min_edge_count_used,
         }
 
 
@@ -123,6 +126,14 @@ class GraphBuilder:
 
         edge_df = self._edge_features(transactions)
         edge_df = edge_df[edge_df["txn_count"] >= self.config.min_edge_count]
+        effective_min_count = self.config.min_edge_count
+        if edge_df.empty and self.config.min_edge_count > 1:
+            warnings.warn(
+                "All edges were filtered out by min_edge_count; falling back to 1 to keep sparse graphs visible.",
+                RuntimeWarning,
+            )
+            edge_df = self._edge_features(transactions)
+            effective_min_count = 1
         src = torch.tensor(edge_df["src_id"].values, dtype=torch.long)
         dst = torch.tensor(edge_df["dst_id"].values, dtype=torch.long)
         edge_index = torch.stack([src, dst], dim=0)
@@ -143,6 +154,7 @@ class GraphBuilder:
             feature_names=feature_cols,
             node_labels=labels,
             transactions=transactions,
+            min_edge_count_used=effective_min_count,
         )
 
     def _window_aggregate(self, df: pd.DataFrame, column: str) -> pd.Series:

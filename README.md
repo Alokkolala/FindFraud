@@ -94,6 +94,10 @@ py -m findfraud.cli train data\transactions.csv models\gnn.pt --model-type gnn -
 This builds an account-to-account interaction graph with rolling window aggregations, trains a GraphSAGE model, and optionally
 persists the serialized graph snapshot alongside the model weights.
 
+If you see a saved graph with many nodes but zero edges, lower `--min-edge-count` (or leave it at the default `1`). When every
+edge would be filtered out, the builder now relaxes the threshold to `1` automatically so sparse networks still render in
+visualizations.
+
 ### Score new transactions
 
 ```bash

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
+from pathlib import Path
 import inspect
 import importlib.util
 
@@ -136,12 +137,14 @@ class GraphModelTrainer:
         }
 
     def save(self, model_bundle: dict, path: str) -> None:
+        Path(path).expanduser().parent.mkdir(parents=True, exist_ok=True)
         torch.save(model_bundle, path)
 
     def load(self, path: str) -> dict:
         return torch.load(path, map_location="cpu")
 
     def save_artifacts(self, artifacts: "GraphArtifacts", path: str) -> None:
+        Path(path).expanduser().parent.mkdir(parents=True, exist_ok=True)
         torch.save(artifacts, path)
 
     def load_artifacts(self, path: str) -> "GraphArtifacts":

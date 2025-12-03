@@ -27,7 +27,12 @@ class ModelTrainer:
         self.config = config or ModelConfig()
 
     def train(self, features: pd.DataFrame, feature_columns: Iterable[str]) -> dict:
-        X = features[list(feature_columns)].fillna(0)
+        X = (
+            features[list(feature_columns)]
+            .apply(pd.to_numeric, errors="coerce")
+            .fillna(0)
+        )
+        X_array = X.to_numpy(dtype=float)
         pipeline = Pipeline(
             steps=[
                 ("scaler", StandardScaler()),
@@ -42,8 +47,8 @@ class ModelTrainer:
                 ),
             ]
         )
-        pipeline.fit(X)
-        background = shap.sample(X, nsamples=min(200, len(X)))
+        pipeline.fit(X_array)
+        background = shap.sample(X_array, nsamples=min(200, len(X_array)))
         return {"pipeline": pipeline, "feature_columns": list(feature_columns), "background": background}
 
     def save(self, model_bundle: dict, path: str | Path) -> None:
@@ -61,17 +66,31 @@ class AnomalyDetector:
         self.background: pd.DataFrame | None = model_bundle.get("background")
         model = self.pipeline
         if self.background is not None:
-            self.explainer = shap.Explainer(lambda x: -model.decision_function(x), self.background)
+            if hasattr(self.background, "to_numpy"):
+                background_values = self.background.to_numpy(dtype=float)
+            else:
+                background_values = np.asarray(self.background, dtype=float)
+            self.explainer = shap.Explainer(
+                lambda x: -model.decision_function(x),
+                background_values,
+                feature_names=self.feature_columns,
+                algorithm="permutation",
+            )
         else:
             self.explainer = None
 
     def score(self, features: pd.DataFrame) -> tuple[np.ndarray, list[str]]:
-        X = features[self.feature_columns].fillna(0)
-        anomaly_raw = -self.pipeline.decision_function(X)
+        X = (
+            features[self.feature_columns]
+            .apply(pd.to_numeric, errors="coerce")
+            .fillna(0)
+        )
+        X_values = X.to_numpy(dtype=float)
+        anomaly_raw = -self.pipeline.decision_function(X_values)
         score = (anomaly_raw - anomaly_raw.min()) / (np.ptp(anomaly_raw) + 1e-9)
         explanations: list[str] = ["" for _ in range(len(features))]
         if self.explainer is not None:
-            shap_values = self.explainer(X)
+            shap_values = self.explainer(X_values)
             for i, sample_values in enumerate(shap_values.values):
                 feature_importance = np.abs(sample_values)
                 top_idx = feature_importance.argsort()[-3:][::-1]

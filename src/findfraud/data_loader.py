@@ -52,11 +52,21 @@ class TransactionLoader:
     def load(self, path: str) -> pd.DataFrame:
         """Load a transaction CSV and enforce schema."""
         df = pd.read_csv(path, dtype=self.schema.dtypes)
+        return self.validate_frame(df)
+
+    def validate_frame(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Validate and coerce an in-memory transaction frame."""
+
         missing = [c for c in self.schema.required_columns if c not in df.columns]
         if missing:
             raise ValueError(f"Missing required columns: {missing}")
 
-        df = df.dropna(subset=self.schema.required_columns)
+        df = df.dropna(subset=self.schema.required_columns).copy()
+
+        for col, dtype in self.schema.dtypes.items():
+            if col in df.columns:
+                df[col] = df[col].astype(dtype)
+
         df = df.sort_values(["step", "nameOrig"]).reset_index(drop=True)
 
         if "transaction_id" not in df.columns:

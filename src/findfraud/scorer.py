@@ -76,18 +76,14 @@ class ScoringPipeline:
         augmented["dest_is_new"] = ((augmented["oldbalanceDest"] == 0) & (augmented["newbalanceDest"] > 0)).astype(int)
         return augmented
 
-    def score(
+    def score_frame(
         self,
-        csv_path: str,
+        raw: pd.DataFrame,
         model_path: str,
-        output_csv: str,
-        html_report: Optional[str] = None,
-        pdf_report: Optional[str] = None,
         graph_output: Optional[str] = None,
-        profile_output: Optional[str] = None,
-    ) -> pd.DataFrame:
-        raw = self.loader.load(csv_path)
-
+        profile_output: bool = False,
+        model_bundle: Optional[dict] = None,
+    ) -> tuple[pd.DataFrame, dict[str, object], dict[str, object] | None, pd.DataFrame | None]:
         training_details: dict[str, object] = {"model_type": self.model_choice, "model_path": Path(model_path).resolve()}
         graph_details: dict[str, object] | None = None
         profiles: pd.DataFrame | None = None
@@ -98,7 +94,7 @@ class ScoringPipeline:
             from .graph_builder import GraphBuilderConfig
             from .graph_model import GraphAnomalyDetector
 
-            model_bundle = self.graph_model_trainer.load(model_path)
+            model_bundle = model_bundle or self.graph_model_trainer.load(model_path)
             builder_cfg = model_bundle.get("builder_config")
             if builder_cfg:
                 self.graph_builder.config = GraphBuilderConfig(**builder_cfg)
@@ -107,6 +103,7 @@ class ScoringPipeline:
             ml_scores = np.array(detector.score(artifacts))
             shap_text = [f"Graph risk={score:.3f}" for score in ml_scores]
             if graph_output:
+                Path(graph_output).parent.mkdir(parents=True, exist_ok=True)
                 self.graph_model_trainer.save_artifacts(artifacts, graph_output)
             graph_details = {
                 "nodes": len(artifacts.node_mapping),
@@ -127,7 +124,7 @@ class ScoringPipeline:
             training_details["graph_features"] = model_bundle.get("feature_names")
             training_details["graph_builder"] = asdict(self.graph_builder.config)
         else:
-            model_bundle = self.model_trainer.load(model_path)
+            model_bundle = model_bundle or self.model_trainer.load(model_path)
             self._restore_feature_engineer(model_bundle)
             enriched, feature_cols = self.feature_engineer.transform(raw)
             detector = AnomalyDetector(model_bundle)
@@ -159,11 +156,35 @@ class ScoringPipeline:
                 "explanation": explanation,
             }
         )
-        Path(output_csv).parent.mkdir(parents=True, exist_ok=True)
-        output.to_csv(output_csv, index=False)
 
         if profile_output:
             profiles = self._classify_profiles(raw, combined_score, is_suspicious)
+
+        return output, training_details, graph_details, profiles
+
+    def score(
+        self,
+        csv_path: str,
+        model_path: str,
+        output_csv: str,
+        html_report: Optional[str] = None,
+        pdf_report: Optional[str] = None,
+        graph_output: Optional[str] = None,
+        profile_output: Optional[str] = None,
+    ) -> pd.DataFrame:
+        raw = self.loader.load(csv_path)
+
+        output, training_details, graph_details, profiles = self.score_frame(
+            raw,
+            model_path,
+            graph_output=graph_output,
+            profile_output=bool(profile_output),
+        )
+
+        Path(output_csv).parent.mkdir(parents=True, exist_ok=True)
+        output.to_csv(output_csv, index=False)
+
+        if profile_output and profiles is not None:
             Path(profile_output).parent.mkdir(parents=True, exist_ok=True)
             profiles.to_csv(profile_output, index=False)
 

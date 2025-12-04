@@ -123,6 +123,53 @@ py -m findfraud.cli score data\new_transactions.csv models\anomaly.joblib output
 py -m findfraud.cli score data\new_transactions.csv models\gnn.pt outputs\graph_scores.csv --model-type gnn --graph-artifacts outputs\scored_graph.pt --html-report outputs\graph_report.html --profiles-csv outputs\graph_profiles.csv
 ```
 
+### Serve the model as an API
+
+The project ships a FastAPI app (`findfraud.api:app`) that exposes two endpoints:
+
+- `POST /detect_fraud` — JSON payload for a single transaction; returns `transaction_id`, `fraud_score`, `is_suspicious`, and `explanation`.
+- `POST /upload_csv` — multipart CSV upload; returns a CSV with the same columns as above for each row.
+
+Start the API locally (Linux/macOS):
+
+```bash
+FINDFRAUD_MODEL_PATH=models/anomaly.joblib uvicorn findfraud.api:app --host 0.0.0.0 --port 8000
+```
+
+Windows (PowerShell):
+
+```powershell
+$env:FINDFRAUD_MODEL_PATH="models\anomaly.joblib"
+py -m uvicorn findfraud.api:app --host 0.0.0.0 --port 8000
+```
+
+Example requests against a running server:
+
+```bash
+curl -X POST http://localhost:8000/detect_fraud \
+  -H "Content-Type: application/json" \
+  -d '{"step": 1, "type": "PAYMENT", "amount": 1200, "nameOrig": "C1", "oldbalanceOrg": 5000, "newbalanceOrig": 3800, "nameDest": "C2", "oldbalanceDest": 0, "newbalanceDest": 1200}'
+
+curl -X POST http://localhost:8000/upload_csv \
+  -F "file=@data/new_transactions.csv" -o scored_transactions.csv
+```
+
+PowerShell equivalents with Windows-style paths:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://localhost:8000/detect_fraud -ContentType "application/json" -Body '{"step":1,"type":"PAYMENT","amount":1200,"nameOrig":"C1","oldbalanceOrg":5000,"newbalanceOrig":3800,"nameDest":"C2","oldbalanceDest":0,"newbalanceDest":1200}'
+
+Invoke-RestMethod -Method Post -Uri http://localhost:8000/upload_csv -Form @{file=Get-Item "data\new_transactions.csv"} -OutFile scored_transactions.csv
+```
+
+Deploying to Heroku or any WSGI/ASGI-friendly service can use Gunicorn:
+
+```bash
+gunicorn -k uvicorn.workers.UvicornWorker findfraud.api:app --bind 0.0.0.0:$PORT
+```
+
+For AWS Lambda with API Gateway, install `mangum` and point the handler at `findfraud.api:handler`.
+
 ### Explainability
 
 The anomaly detector computes feature-level attributions using SHAP over the model decision function and combines them with triggered rules to produce human-readable per-transaction explanations.

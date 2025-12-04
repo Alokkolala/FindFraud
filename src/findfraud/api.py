@@ -8,6 +8,7 @@ from typing import List
 
 import pandas as pd
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -78,6 +79,15 @@ class FraudModelService:
 
 
 app = FastAPI(title="FindFraud API", version="1.0.0")
+
+cors_setting = os.getenv("FINDFRAUD_CORS_ORIGINS", "*")
+allowed_origins = [origin.strip() for origin in cors_setting.split(",") if origin.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins or ["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")

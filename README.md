@@ -143,6 +143,26 @@ $env:FINDFRAUD_MODEL_PATH="models\anomaly.joblib"
 py -m uvicorn findfraud.api:app --host 0.0.0.0 --port 8000
 ```
 
+Expose the API to other machines or browsers by enabling CORS and binding to all interfaces:
+
+```bash
+FINDFRAUD_MODEL_PATH=models/anomaly.joblib \
+FINDFRAUD_CORS_ORIGINS="https://my-frontend.example.com,http://localhost:3000" \
+uvicorn findfraud.api:app --host 0.0.0.0 --port 8000
+```
+
+```powershell
+$env:FINDFRAUD_MODEL_PATH="models\anomaly.joblib"
+$env:FINDFRAUD_CORS_ORIGINS="https://my-frontend.example.com,http://localhost:3000"
+py -m uvicorn findfraud.api:app --host 0.0.0.0 --port 8000
+```
+
+Notes for cross-site access:
+
+- `FINDFRAUD_CORS_ORIGINS` accepts a comma-separated list of allowed origins (e.g., the URL of your web app). Use `*` to allow any origin during testing.
+- Ensure the host machine’s firewall allows inbound traffic to the chosen port (8000 by default), and configure router/NAT port forwarding if you need access from the public internet.
+- When running behind a reverse proxy or tunneling tool (ngrok, cloudflared, SSH remote forwarding), point it at `http://localhost:8000` and share the public URL with your frontend.
+
 Example requests against a running server:
 
 ```bash

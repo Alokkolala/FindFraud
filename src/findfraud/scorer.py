@@ -88,6 +88,10 @@ class ScoringPipeline:
     ) -> pd.DataFrame:
         raw = self.loader.load(csv_path)
 
+        training_details: dict[str, object] = {"model_type": self.model_choice, "model_path": Path(model_path).resolve()}
+        graph_details: dict[str, object] | None = None
+        profiles: pd.DataFrame | None = None
+
         if self.model_choice == "gnn":
             if self.graph_builder is None or self.graph_model_trainer is None:
                 raise ValueError("Graph components are not initialized.")
@@ -104,8 +108,24 @@ class ScoringPipeline:
             shap_text = [f"Graph risk={score:.3f}" for score in ml_scores]
             if graph_output:
                 self.graph_model_trainer.save_artifacts(artifacts, graph_output)
+            graph_details = {
+                "nodes": len(artifacts.node_mapping),
+                "edges": int(artifacts.edge_index.size(1)),
+                "min_edge_count_used": artifacts.min_edge_count_used,
+                "graph_path": Path(graph_output).resolve() if graph_output else "<not saved>",
+            }
+            edge_table = (
+                artifacts.transactions.groupby(["nameOrig", "nameDest"]).agg(
+                    txn_count=("amount", "count"), total_amount=("amount", "sum")
+                )
+            )
+            edge_table = edge_table.sort_values(["txn_count", "total_amount"], ascending=False).reset_index()
+            graph_details["top_edges"] = edge_table.head(20)
             enriched = artifacts.transactions
             rule_frame = self._augment_rule_features(raw)
+            training_details["gnn_config"] = model_bundle.get("config")
+            training_details["graph_features"] = model_bundle.get("feature_names")
+            training_details["graph_builder"] = asdict(self.graph_builder.config)
         else:
             model_bundle = self.model_trainer.load(model_path)
             self._restore_feature_engineer(model_bundle)
@@ -113,6 +133,8 @@ class ScoringPipeline:
             detector = AnomalyDetector(model_bundle)
             ml_scores, shap_text = detector.score(enriched)
             rule_frame = enriched
+            training_details["feature_columns"] = feature_cols
+            training_details["contamination"] = getattr(self.model_trainer.config, "contamination", None)
 
         rule_results = self.rule_engine.evaluate(rule_frame)
         rule_text = self.rule_engine.summarize(rule_results)
@@ -149,7 +171,14 @@ class ScoringPipeline:
 
         if html_report:
             builder = ReportBuilder()
-            builder.build_html(raw, output, html_report)
+            builder.build_html(
+                raw,
+                output,
+                html_report,
+                training_info=training_details,
+                graph_info=graph_details,
+                profiles=profiles,
+            )
             if pdf_report:
                 builder.html_to_pdf(html_report, pdf_report)
 

@@ -102,17 +102,10 @@ visualizations.
 
 ```bash
 python -m findfraud.cli score data/new_transactions.csv models/anomaly.joblib outputs/scores.csv \
-  --html-report outputs/report.html --pdf-report outputs/report.pdf
+  --html-report outputs/report.html --pdf-report outputs/report.pdf --profiles-csv outputs/profiles.csv
 ```
 
-The scorer outputs `transaction_id`, `fraud_score`, `is_suspicious`, and `explanation` columns. HTML reporting is always produced when requested; PDF generation will occur if `weasyprint` is installed.
-
-You can also write an account-level profile table that classifies which users look most suspicious:
-
-```bash
-python -m findfraud.cli score data/new_transactions.csv models/anomaly.joblib outputs/scores.csv \
-  --profiles-csv outputs/profiles.csv
-```
+The scorer outputs `transaction_id`, `fraud_score`, `is_suspicious`, and `explanation` columns. When `--html-report` is supplied, the generated file consolidates everything in one place: model/training metadata, the combined-score transaction table, top suspicious rows, the optional graph snapshot summary, and any account profile classifications. PDF generation will occur if `weasyprint` is installed.
 
 Each profile row summarizes an account’s combined role as sender/receiver with the maximum and mean transaction score, total transaction/amount volume, and a `risk_level` bucket (`high_risk`, `elevated`, `low_risk`). Accounts that ever touched a flagged transaction or reached a score ≥ 0.8 are marked `high_risk`.
 
@@ -126,9 +119,8 @@ python -m findfraud.cli score data/new_transactions.csv models/gnn.pt outputs/gr
 Windows (PowerShell) equivalents:
 
 ```powershell
-py -m findfraud.cli score data\new_transactions.csv models\anomaly.joblib outputs\scores.csv --html-report outputs\report.html --pdf-report outputs\report.pdf
-py -m findfraud.cli score data\new_transactions.csv models\gnn.pt outputs\graph_scores.csv --model-type gnn --graph-artifacts outputs\scored_graph.pt
-py -m findfraud.cli score data\new_transactions.csv models\anomaly.joblib outputs\scores.csv --profiles-csv outputs\profiles.csv
+py -m findfraud.cli score data\new_transactions.csv models\anomaly.joblib outputs\scores.csv --html-report outputs\report.html --pdf-report outputs\report.pdf --profiles-csv outputs\profiles.csv
+py -m findfraud.cli score data\new_transactions.csv models\gnn.pt outputs\graph_scores.csv --model-type gnn --graph-artifacts outputs\scored_graph.pt --html-report outputs\graph_report.html --profiles-csv outputs\graph_profiles.csv
 ```
 
 ### Explainability

@@ -1,4 +1,3 @@
-"""Model training and inference utilities."""
 from __future__ import annotations
 
 from dataclasses import dataclass

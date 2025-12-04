@@ -1,4 +1,3 @@
-"""Graph neural network model definitions and training utilities."""
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
@@ -34,7 +33,6 @@ class GraphModelConfig:
 
 
 class FraudGNN(nn.Module):
-    """Graph neural network for node-level fraud scoring."""
 
     def __init__(self, input_dim: int, config: GraphModelConfig) -> None:
         super().__init__()
@@ -61,7 +59,7 @@ class FraudGNN(nn.Module):
         self.dropout = self.dropout.to(device)
         return self
 
-    def parameters(self):  # type: ignore[override]
+    def parameters(self):
         params = list(self.layers.parameters())
         params.extend(self.classifier.parameters())
         return params
@@ -91,7 +89,7 @@ class FraudGNN(nn.Module):
         edge_index = data.edge_index
         edge_weight = None
         if getattr(data, "edge_attr", None) is not None:
-            edge_weight = data.edge_attr[:, 1]  # transaction count as edge weight
+            edge_weight = data.edge_attr[:, 1]
 
         for layer in self.layers:
             kwargs = {}
@@ -105,7 +103,6 @@ class FraudGNN(nn.Module):
 
 
 class GraphModelTrainer:
-    """Train, save, and load graph neural networks."""
 
     def __init__(self, config: GraphModelConfig | None = None) -> None:
         self.config = config or GraphModelConfig()
@@ -152,7 +149,6 @@ class GraphModelTrainer:
 
 
 class GraphAnomalyDetector:
-    """Inference helper for fraud probability estimation with a trained GNN."""
 
     def __init__(self, model_bundle: dict) -> None:
         config = GraphModelConfig(**model_bundle["config"])

@@ -1,4 +1,3 @@
-"""FastAPI application exposing the fraud detection pipeline."""
 from __future__ import annotations
 
 import os
@@ -19,7 +18,6 @@ from .scorer import ScoringPipeline
 
 
 class TransactionInput(BaseModel):
-    """Schema for a single transaction payload."""
 
     model_config = ConfigDict(extra="allow")
 
@@ -40,7 +38,6 @@ class TransactionInput(BaseModel):
 
 
 class FraudModelService:
-    """Wrap the scoring pipeline for API usage."""
 
     def __init__(self, model_path: str, model_choice: str = "tabular") -> None:
         self.model_path = Path(model_path)
@@ -55,7 +52,6 @@ class FraudModelService:
         self.reload()
 
     def reload(self) -> None:
-        """(Re)load a serialized model bundle into memory."""
 
         if self.model_choice == "gnn":
             if self.pipeline.graph_model_trainer is None:
@@ -66,7 +62,6 @@ class FraudModelService:
             self.pipeline._restore_feature_engineer(self.model_bundle)
 
     def score_records(self, records: List[dict]) -> pd.DataFrame:
-        """Score a list of transaction dictionaries."""
 
         if not records:
             raise ValueError("No transactions provided.")
@@ -96,7 +91,7 @@ def _load_service() -> None:
     model_choice = os.getenv("FINDFRAUD_MODEL_TYPE", "tabular")
     try:
         app.state.service = FraudModelService(model_path=model_path, model_choice=model_choice)
-    except Exception as exc:  # pragma: no cover - startup failure should surface
+    except Exception as exc:
         raise RuntimeError(f"Failed to load model at startup: {exc}") from exc
 
 
@@ -109,7 +104,6 @@ def _service() -> FraudModelService:
 
 @app.post("/detect_fraud")
 async def detect_fraud(payload: TransactionInput) -> JSONResponse:
-    """Score a single transaction payload and return fraud likelihood."""
 
     try:
         result = _service().score_records([payload.model_dump()])
@@ -128,7 +122,6 @@ async def detect_fraud(payload: TransactionInput) -> JSONResponse:
 
 @app.post("/upload_csv")
 async def upload_csv(file: UploadFile = File(...)) -> StreamingResponse:
-    """Score a CSV of transactions and return a CSV with results."""
 
     if not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV uploads are supported")
@@ -136,7 +129,7 @@ async def upload_csv(file: UploadFile = File(...)) -> StreamingResponse:
     try:
         content = await file.read()
         frame = pd.read_csv(BytesIO(content))
-    except Exception as exc:  # pragma: no cover - runtime parsing guard
+    except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Could not parse CSV: {exc}") from exc
 
     try:
@@ -151,16 +144,15 @@ async def upload_csv(file: UploadFile = File(...)) -> StreamingResponse:
     return StreamingResponse(iter([buffer.getvalue()]), media_type="text/csv", headers=headers)
 
 
-# Optional AWS Lambda compatibility when `mangum` is installed.
-try:  # pragma: no cover - import guarded for optional usage
+try:
     from mangum import Mangum
 
     handler = Mangum(app)
-except Exception:  # pragma: no cover - optional dependency
+except Exception:
     handler = None
 
 
-if __name__ == "__main__":  # pragma: no cover - manual launch helper
+if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(

@@ -1,4 +1,3 @@
-"""Utilities for loading and validating transaction data."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -9,7 +8,6 @@ import pandas as pd
 
 @dataclass
 class TransactionSchema:
-    """Schema description for transaction CSV files."""
 
     dtypes: Dict[str, str]
     required_columns: List[str]
@@ -44,18 +42,15 @@ DEFAULT_SCHEMA = TransactionSchema(
 
 
 class TransactionLoader:
-    """Load and preprocess transaction CSV files."""
 
     def __init__(self, schema: TransactionSchema = DEFAULT_SCHEMA) -> None:
         self.schema = schema
 
     def load(self, path: str) -> pd.DataFrame:
-        """Load a transaction CSV and enforce schema."""
         df = pd.read_csv(path, dtype=self.schema.dtypes)
         return self.validate_frame(df)
 
     def validate_frame(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Validate and coerce an in-memory transaction frame."""
 
         missing = [c for c in self.schema.required_columns if c not in df.columns]
         if missing:

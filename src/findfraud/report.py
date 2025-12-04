@@ -1,4 +1,3 @@
-"""Generate HTML/PDF reports summarizing scoring results."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -16,8 +15,7 @@ class ReportBuilder:
         training_info: dict | None = None,
         graph_info: dict | None = None,
         profiles: pd.DataFrame | None = None,
-        ) -> str:
-        """Render a single HTML report that includes model, scoring, graph, and profile views."""
+    ) -> str:
 
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         suspicious = scores[scores["is_suspicious"]]
@@ -130,13 +128,16 @@ class ReportBuilder:
                     for _ in row
                 ]
 
-            styler = (
-                df.style.hide(axis="index")
-                .set_table_attributes('class="table"')
-                .format(precision=4)
-                .apply(_highlight, axis=1)
-            )
-            return styler.to_html()
+            try:
+                styler = (
+                    df.style.hide(axis="index")
+                    .set_table_attributes('class="table"')
+                    .format(precision=4)
+                    .apply(_highlight, axis=1)
+                )
+                return styler.to_html()
+            except Exception:
+                return df.to_html(index=False, classes="table", float_format="{:.4f}".format)
 
         html_lines = [
             "<html><head><title>FindFraud Scoring Report</title>",

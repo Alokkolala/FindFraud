@@ -1,4 +1,3 @@
-"""Score transactions with combined ML and rule-based logic."""
 from __future__ import annotations
 
 from dataclasses import asdict
@@ -211,7 +210,6 @@ class ScoringPipeline:
         fraud_scores: np.ndarray,
         is_suspicious: np.ndarray,
     ) -> pd.DataFrame:
-        """Aggregate transaction scores into account-level risk profiles."""
 
         role_rows = [
             pd.DataFrame(

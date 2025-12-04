@@ -1,4 +1,3 @@
-"""Command-line interface for FindFraud."""
 from __future__ import annotations
 
 import argparse
@@ -105,5 +104,5 @@ def main() -> None:
             print(f"Account profiles written to {Path(args.profiles_csv).resolve()}")
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     main()

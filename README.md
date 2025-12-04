@@ -17,6 +17,17 @@ src/findfraud/
 └── cli.py              # Command-line entrypoint
 ```
 
+## How FindFraud works
+
+- Data ingestion: CSVs are validated against the PaySim-style schema so every run starts with consistent columns and types.
+- Feature pipeline: tabular runs use rolling counts, deltas, and encoded categories; graph runs build account-to-account edges with transaction totals, frequencies, and timing gaps.
+- Models: choose between the IsolationForest anomaly detector or a GraphSAGE model trained on the constructed graph.
+- Rules: heuristic checks for large transfers, rapid bursts, balance gaps, and new destinations add transparent business logic.
+- Score fusion: model outputs and rule hits are blended into a single fraud score, with per-transaction explanations that list both SHAP drivers and triggered rules.
+- Profiles: optional aggregation collapses scores by account to spotlight high-risk senders/receivers.
+- Reporting: one HTML file captures training metadata, all scored rows, highlighted suspicious items, graph summaries, and profile tables; PDFs are also supported when WeasyPrint is installed.
+- Deployment: the same pipeline powers the CLI and the FastAPI service, so batch scoring and real-time requests stay aligned.
+
 ## Supported CSV schema
 
 The pipeline is tailored to the common "PaySim"-style transaction schema. Required columns:
@@ -206,9 +217,9 @@ from findfraud.graph_model import GraphModelTrainer
 trainer = GraphModelTrainer()
 artifacts = trainer.load_artifacts("outputs/graph.pt")
 G = artifacts.to_networkx(
-    min_txn_count=3,       # hide edges with fewer than 3 transfers
-    min_total_amount=1e5,  # hide edges that moved less than 100k total
-    top_n_nodes=50,        # keep only the busiest 50 accounts to reduce clutter
+    min_txn_count=3,
+    min_total_amount=1e5,
+    top_n_nodes=50,
 )
 
 pos = nx.spring_layout(G, seed=0, k=0.3)

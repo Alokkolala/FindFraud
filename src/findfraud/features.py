@@ -1,4 +1,3 @@
-"""Feature engineering utilities."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -15,7 +14,6 @@ class FeatureConfig:
 
 
 class FeatureEngineer:
-    """Generate numeric and categorical features for fraud detection."""
 
     def __init__(self, config: FeatureConfig | None = None) -> None:
         self.config = config or FeatureConfig()

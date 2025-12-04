@@ -1,4 +1,3 @@
-"""Configurable rule engine for transaction risk flags."""
 from __future__ import annotations
 
 from dataclasses import dataclass

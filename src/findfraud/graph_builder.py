@@ -1,4 +1,3 @@
-"""Graph construction utilities for transaction networks."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -20,7 +19,6 @@ def _require_torch() -> None:
 
 @dataclass
 class GraphBuilderConfig:
-    """Configuration for aggregating transactions into a graph."""
 
     window_size: int = 24
     min_edge_count: int = 1
@@ -28,7 +26,6 @@ class GraphBuilderConfig:
 
 @dataclass
 class GraphArtifacts:
-    """Serialized components that describe the constructed graph."""
 
     node_mapping: Dict[str, int]
     node_features: pd.DataFrame
@@ -58,17 +55,6 @@ class GraphArtifacts:
         min_total_amount: float | None = None,
         top_n_nodes: int | None = None,
     ) -> "networkx.Graph":
-        """Convert the graph to a NetworkX graph for visualization or exploration.
-
-        Parameters
-        ----------
-        min_txn_count:
-            Drop edges with fewer transactions than this threshold before plotting.
-        min_total_amount:
-            Drop edges whose aggregated amount is below this value.
-        top_n_nodes:
-            Keep only the highest-degree nodes to reduce clutter (helpful for dense stars).
-        """
 
         _require_torch()
         import torch
@@ -111,7 +97,6 @@ class GraphArtifacts:
 
 
 class GraphBuilder:
-    """Construct account-to-account graphs from transactions with rich edge/node features."""
 
     def __init__(self, config: GraphBuilderConfig | None = None) -> None:
         self.config = config or GraphBuilderConfig()

@@ -84,6 +84,7 @@ class ScoringPipeline:
         html_report: Optional[str] = None,
         pdf_report: Optional[str] = None,
         graph_output: Optional[str] = None,
+        profile_output: Optional[str] = None,
     ) -> pd.DataFrame:
         raw = self.loader.load(csv_path)
 
@@ -139,6 +140,11 @@ class ScoringPipeline:
         Path(output_csv).parent.mkdir(parents=True, exist_ok=True)
         output.to_csv(output_csv, index=False)
 
+        if profile_output:
+            profiles = self._classify_profiles(raw, combined_score, is_suspicious)
+            Path(profile_output).parent.mkdir(parents=True, exist_ok=True)
+            profiles.to_csv(profile_output, index=False)
+
         from .report import ReportBuilder
 
         if html_report:
@@ -148,3 +154,65 @@ class ScoringPipeline:
                 builder.html_to_pdf(html_report, pdf_report)
 
         return output
+
+    def _classify_profiles(
+        self,
+        df: pd.DataFrame,
+        fraud_scores: np.ndarray,
+        is_suspicious: np.ndarray,
+    ) -> pd.DataFrame:
+        """Aggregate transaction scores into account-level risk profiles."""
+
+        role_rows = [
+            pd.DataFrame(
+                {
+                    "account": df["nameOrig"],
+                    "role": "origin",
+                    "amount": df["amount"],
+                    "fraud_score": fraud_scores,
+                    "is_suspicious": is_suspicious,
+                }
+            ),
+            pd.DataFrame(
+                {
+                    "account": df["nameDest"],
+                    "role": "destination",
+                    "amount": df["amount"],
+                    "fraud_score": fraud_scores,
+                    "is_suspicious": is_suspicious,
+                }
+            ),
+        ]
+        merged = pd.concat(role_rows, ignore_index=True)
+
+        grouped = merged.groupby("account")
+        summary = grouped.agg(
+            total_transactions=("fraud_score", "size"),
+            suspicious_transactions=("is_suspicious", "sum"),
+            total_amount=("amount", "sum"),
+            max_score=("fraud_score", "max"),
+            mean_score=("fraud_score", "mean"),
+        ).reset_index()
+
+        def label_row(row: pd.Series) -> str:
+            if row["max_score"] >= 0.8 or row["suspicious_transactions"] > 0:
+                return "high_risk"
+            if row["mean_score"] >= 0.5:
+                return "elevated"
+            return "low_risk"
+
+        summary["risk_level"] = summary.apply(label_row, axis=1)
+        risk_rank = {"high_risk": 0, "elevated": 1, "low_risk": 2}
+        summary["risk_rank"] = summary["risk_level"].map(risk_rank).fillna(3)
+        summary = summary.sort_values(["risk_rank", "max_score"], ascending=[True, False])
+        return summary[
+            [
+                "account",
+                "risk_level",
+                "max_score",
+                "mean_score",
+                "total_transactions",
+                "suspicious_transactions",
+                "total_amount",
+            ]
+        ]

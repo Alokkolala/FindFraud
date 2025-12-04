@@ -36,6 +36,11 @@ def build_parser() -> argparse.ArgumentParser:
     score_parser.add_argument("--pdf-report", dest="pdf_report", help="Optional PDF report path")
     score_parser.add_argument("--model-type", choices=["tabular", "gnn"], default="tabular")
     score_parser.add_argument("--graph-artifacts", dest="graph_artifacts", help="Optional path to persist graph snapshot")
+    score_parser.add_argument(
+        "--profiles-csv",
+        dest="profiles_csv",
+        help="Optional path to write account-level risk classifications",
+    )
     score_parser.add_argument("--window-size", type=int, default=24, help="Step window for graph reconstruction")
     score_parser.add_argument("--min-edge-count", type=int, default=1, help="Minimum transactions required to keep an edge")
 
@@ -87,6 +92,7 @@ def main() -> None:
             html_report=args.html_report,
             pdf_report=args.pdf_report,
             graph_output=getattr(args, "graph_artifacts", None),
+            profile_output=getattr(args, "profiles_csv", None),
         )
         print(f"Scores written to {Path(args.output).resolve()}")
         if args.html_report:
@@ -95,6 +101,8 @@ def main() -> None:
             print(f"PDF report written to {Path(args.pdf_report).resolve()}")
         if getattr(args, "graph_artifacts", None):
             print(f"Graph snapshot written to {Path(args.graph_artifacts).resolve()}")
+        if getattr(args, "profiles_csv", None):
+            print(f"Account profiles written to {Path(args.profiles_csv).resolve()}")
 
 
 if __name__ == "__main__":  # pragma: no cover
